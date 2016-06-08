@@ -43,6 +43,7 @@
 
 ## Returns the design of an experiment 
 ##
+## or modif 2
 microscope.get.design = function(
     F=c("/media/elusers/data/microscope/or/06noise/151109_dip1_take1_SDfullselection"),
     D=c("YMD"),
