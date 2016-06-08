@@ -1,14 +1,5 @@
 ########  OUTLINE OF ALL FUNCTIONS
 #
-# I moved ALL FIGURE functions to -->  /data/elevy/00_Papers/015_noise_coherence/noise_coherence_2015_12_11_EDL.R
-#
-# As for this file, each one of us should keep a local copy with:
-# - date
-# - initials
-#
-# ---> each time one of us works on it we should us the last version of the other.
-# 
-
 ########  CORE FUNCTIONS (load / filter)
 #
 #  microscope.get.design = function(
