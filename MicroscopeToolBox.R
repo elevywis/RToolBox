@@ -56,7 +56,8 @@ microscope.get.design = function(
   OUT="_Nov15jsoutput",
   CHANELS=c("GFP","RFP"),
   MEASURE.COL = "Brigh30Per",
-  DIR.res = "/data/elevy/84_celltube/results/03_cell_process/"
+  DIR.res = "/data/elevy/84_celltube/results/03_cell_process/",
+    MINCELLNUM=20
 ){
   
   if(length(F) != length(D)){
@@ -87,6 +88,9 @@ microscope.get.design = function(
   ## if multiple plates it may be several folders
   ## /!\ acquisition setting must be the same for all plates)    
   microscope.design$F     = F
+
+  ## Minimum number of cells to consider a picture
+  microscope.design$MINCELLNUM     = MINCELLNUM
   
   ##
   ## String that must be appended to the original folder to locate the results folder.
@@ -248,7 +252,7 @@ microscope.load.data = function(design){
       
       ## If the file was not read, or if the file read had a bad format
       ## we use a generic file instead
-      if(NROW(res.file)<50){
+      if(NROW(res.file)<design$MINCELLNUM){
         Nb.wells.witohut.res = Nb.wells.witohut.res+1
         res.file = read.csv("/tmp/empty_file.csv")                            
       }
@@ -265,7 +269,7 @@ microscope.load.data = function(design){
       
       WELL.tmp = WELLS[N]
       
-    }
+  }
     cat("\n")
     names(data[[K]]) = unique(WELLS)
     print(paste("For plate",K," there are ",Nb.wells.witohut.res," pictures without data"))
@@ -348,12 +352,16 @@ uscope.process.remove.first.pic = function(data){
 ###
 
 uscope.process.remove.small = function(data, MIN.size=1000, MAX.size=2000){
-  
+     
   for(K in 1:length(data)){
     
     for(L in 1:length(data[[K]])){
-      
-      data[[K]][[L]] = data[[K]][[L]][data[[K]][[L]]$area>MIN.size & data[[K]][[L]]$area < MAX.size,]
+
+        if( sum(colnames(data[[1]][[1]])=="Area") ){
+            data[[K]][[L]] = data[[K]][[L]][data[[K]][[L]]$Area>MIN.size & data[[K]][[L]]$Area < MAX.size,]
+        } else {
+            data[[K]][[L]] = data[[K]][[L]][data[[K]][[L]]$area>MIN.size & data[[K]][[L]]$area < MAX.size,]
+        }
     }
   }
   return(data)
@@ -369,10 +377,20 @@ uscope.process.remove.small = function(data, MIN.size=1000, MAX.size=2000){
 uscope.process.BF = function(data){
   
   for(K in 1:length(data)){
-    
-    cols.out.of.focus = grep("BFO_lev_b[0-9]",colnames(data[[K]][[1]]))
-    cols.in.focus     = grep("BFI_lev_b[0-9]",colnames(data[[K]][[1]]))
-    
+
+      if( length(grep("InFocBin[0-9]",colnames(data[[1]][[1]])))>0){
+
+          cols.out.of.focus = grep("OutofFocBin[0-9]",colnames(data[[K]][[1]]))
+          cols.in.focus     = grep("InFocBin[0-9]",colnames(data[[K]][[1]]))
+          AREA = "Area"
+          
+      } else {
+
+          cols.out.of.focus = grep("BFO_lev_b[0-9]",colnames(data[[K]][[1]]))
+          cols.in.focus     = grep("BFI_lev_b[0-9]",colnames(data[[K]][[1]]))
+          AREA = "area"
+      }
+      
     for(L in 1:length(data[[K]])){
       
       PICS = as.numeric(unique(data[[K]][[L]]$pic))
@@ -380,7 +398,7 @@ uscope.process.BF = function(data){
       for(PIC in PICS){
         
         BF.info   = data[[K]][[L]][data[[K]][[L]]$pic==PIC, cols.in.focus]
-        areas     = data[[K]][[L]][data[[K]][[L]]$pic==PIC, "area"]
+        areas     = data[[K]][[L]][data[[K]][[L]]$pic==PIC, AREA]
         area.info = matrix(areas, ncol=NCOL(BF.info), nrow=NROW(BF.info), byrow=FALSE)
         BF.norm   = BF.info / area.info
         BF.mean   = colMeans(BF.norm)
@@ -555,8 +573,8 @@ uscope.process.remove.lowfluo.cells = function(data, fraction=0.8){
     for(L in 1:length(data[[K]])){
       
       for( each.ch in design$CHANELS){
-        my.col = grep(paste(each.CH,design$MEASURE.COL,sep=""), colnames(data[[plateNUM]][[1]]))
-        CUTOFF = quantile( data[[K]][[L]][,my.col] , prob=c(0,fraction,1))[2]                    
+        my.col = grep(paste(each.ch,design$MEASURE.COL,sep=""), colnames(data[[K]][[1]]))
+        CUTOFF = quantile( data[[K]][[L]][,my.col] , prob=c(0,fraction,1))[2]                 
         data[[K]][[L]] = data[[K]][[L]][ data[[K]][[L]][,my.col] > CUTOFF,]                
       }
     }
@@ -566,18 +584,18 @@ uscope.process.remove.lowfluo.cells = function(data, fraction=0.8){
 
 uscope.process.remove.highfluo.cells = function(data, fraction=0.8){
   
-  for(K in 1:length(data)){
+    for(K in 1:length(data)){
     
-    for(L in 1:length(data[[K]])){
+        for(L in 1:length(data[[K]])){
       
-      for( each.ch in design$CHANELS){
-        my.col = grep(paste(each.CH,design$MEASURE.COL,sep=""), colnames(data[[plateNUM]][[1]]))
-        CUTOFF = quantile( data[[K]][[L]][,my.col] , prob=c(0,(1-fraction),1))[2]                    
-        data[[K]][[L]] = data[[K]][[L]][ data[[K]][[L]][,my.col] < CUTOFF,]                
-      }
+            for( each.ch in design$CHANELS){
+                my.col = grep(paste(each.ch,design$MEASURE.COL,sep=""), colnames(data[[K]][[1]]))
+                CUTOFF = quantile( data[[K]][[L]][,my.col] , prob=c(0,(1-fraction),1))[2]                    
+                data[[K]][[L]] = data[[K]][[L]][ data[[K]][[L]][,my.col] < CUTOFF,]                
+            }
+        }
     }
-  }
-  return(data)    
+    return(data)    
 }
 
 ## 
@@ -585,27 +603,27 @@ uscope.process.remove.highfluo.cells = function(data, fraction=0.8){
 ##
 uscope.process.filter.fluo = function(data, design, PERCENT){
   
-  for(K in 1:length(data)){
-    
-    for(L in 1:length(data[[K]])){
-      
-      bads = rep(0, length(data[[K]][[L]][,1]))
-      
-      for ( each.CH in design$CHANELS){
+    for(K in 1:length(data)){
         
-        cols.of.interest = grep( paste(each.CH,"_int_b5",sep=""), colnames(data[[K]][[1]]))
-        
-        GFPm = data[[K]][[L]][,cols.of.interest]
-        Q.GFP = quantile(GFPm,prob=seq(0,1,len=101))
-        
-        bads =   bads | (GFPm <= Q.GFP[PERCENT]) |
-          (GFPm >= Q.GFP[100-PERCENT])
-      }
-      
-      data[[K]][[L]] = data[[K]][[L]][-which(bads),]
+        for(L in 1:length(data[[K]])){
+            
+            bads = rep(0, length(data[[K]][[L]][,1]))
+            
+            for ( each.CH in design$CHANELS){
+                
+                cols.of.interest = grep( paste(each.CH,"_int_b5",sep=""), colnames(data[[K]][[1]]))
+                
+                GFPm = data[[K]][[L]][,cols.of.interest]
+                Q.GFP = quantile(GFPm,prob=seq(0,1,len=101))
+                
+                bads =   bads | (GFPm <= Q.GFP[PERCENT]) |
+                    (GFPm >= Q.GFP[100-PERCENT])
+            }
+            
+            data[[K]][[L]] = data[[K]][[L]][-which(bads),]
+        }
     }
-  }
-  return(data)
+    return(data)
 }
 
 ##
