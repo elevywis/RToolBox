@@ -41,6 +41,10 @@
 #  noise.contribution = function(data,design,GFP="norm.GFP",RFP="norm.RFP"){
 #
 
+#
+# This is a test
+#
+
 ## Returns the design of an experiment 
 ##
 ## or modif 2
