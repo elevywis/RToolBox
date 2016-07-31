@@ -1,4 +1,4 @@
-########  OUTLINE OF ALL FUNCTIONS
+########  OUTLINE OF ALL FUNCTIONS 
 #
 ########  CORE FUNCTIONS (load / filter)
 #
@@ -49,14 +49,15 @@
 ##
 ## or modif 2
 microscope.get.design = function(
-  F=c("/media/elusers/data/microscope/or/06noise/151109_dip1_take1_SDfullselection"),
-  D=c("YMD"),
-  PDEF=c("/data/elusers/data/microscope/plate_defs/151111_noise_dip1.csv"),
-  FORMAT=384,
-  OUT="_Nov15jsoutput",
-  CHANELS=c("GFP","RFP"),
-  MEASURE.COL = "Brigh30Per",
-  DIR.res = "/data/elevy/84_celltube/results/03_cell_process/",
+    F=c("/media/elmicro/Joe/Duplex"),                                        # To be updated by user
+    D=c("Duplex1"),                                                          # To be updated by user
+    PDEF=c("/media/elusers/data/microscope/plate_defs/Duplex_384_2016.csv"), # To be updated by user
+    FORMAT=384,                                                              # To be updated by user
+    CHANELS=c("GFP"),                                                        # To be updated by user
+    DIR.res = "/data/elevy/00_Papers/008_codon/duplexAna/figs/",             # To be updated by user
+    KEY=c("/media/elusers/data/microscope/plate_defs/Duplex_384_key.csv"),   # To be updated by user or leave empty
+    MEASURE.COL = "_int_b5",                                                 # Should not change
+    OUT=c("_output"),                                                         # Should not change
     MINCELLNUM=20
 ){
   
@@ -103,6 +104,7 @@ microscope.get.design = function(
     print(paste("In plate ",K," there are ",length(res.files)," result files ",sep=""))
     K=K+1
   }
+  
   ### TO BE REMOVED LATER, THIS IS ONLY BECAUSE AVITAL NAMED A DIRECTORY INCORECTLY
   # microscope.design$OUT     = gsub(design$OUT,pattern="151",rep="1151")
   
@@ -119,7 +121,28 @@ microscope.get.design = function(
                                     })
   
   if( nrow(microscope.design$PDEF) == 0 ){ stop("the plate definition file is empty") }
-  if( nrow(microscope.design$PDEF) != FORMAT ){ warning("the format specified does not correspond to this plate defition file") }
+  if( nrow(microscope.design$PDEF) != FORMAT ){ warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")}  
+  microscope.design$KEY=NULL
+  
+  if(length(KEY)>0){
+      print(paste("Plate definition KEY file (KEY) : ",KEY))
+      
+      microscope.design$KEY = tryCatch(
+          expr = { res=NA; cat("Reading csv plate KEY file..."); res = read.csv(KEY) },
+          error=function(e){ cat('\rReading csv plate KEY file...FAIL\n'); return(NA) },
+          finally = { if( !is.null(dim(res)) ){ cat("\rReading csv plate KEY file...OK\n"); res }
+          else if( is.na(res) ){ stop("File not accessible for reading. Make sure it is not opened on any computer !",call.=FALSE) }
+                  })
+      
+      if( nrow(microscope.design$KEY) == 0 ){ stop("the plate definition file is empty") }
+
+      for(each.ch in CHANELS){
+          if( sum(grepl(each.ch,names(microscope.design$KEY))) == 0 ){
+              warning(paste0("The channel ",each.ch," is given in the experiment design but does not appear in the plate KEY file"))
+          }
+      }
+  }
+  
   
   ## Checks that the column names are OK
   if( sum(grepl("well",names(microscope.design$PDEF))) == 0){
@@ -131,7 +154,8 @@ microscope.get.design = function(
       warning(paste0("The channel ",each.ch," is given in the experiment design but does not appear in the plate definition file"))
     }
   }
-  
+
+  ## Adds zeros to well ids, e.g., changes A1 to A01 if needed
   microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
   
   ## PLATE FORMAT 96/384
@@ -140,7 +164,9 @@ microscope.get.design = function(
   ## First, looks for the nd files in each folder
   microscope.design$ND=c()
   microscope.design$BASENAMES=c()
+
   
+  ## Problem to resolve in the future: if there are multiple folders, we may need to use multiple plate def. files.
   K=1
   for( each.folder in F){
     
@@ -280,17 +306,18 @@ microscope.load.data = function(design){
   return(data)
 }
 
-uscope.process.reorder = function(data){
-  
-  for(K in 1:length(data)){
-    
-    well.plate = sub(pattern="([A-Z])([0-9]{1})$", x=names(data[[K]]), "\\10\\2",perl=TRUE)
-    
-    data[[K]] = data[[K]][order(well.plate)]
-  }    
-  return(data)  
-}
 
+uscope.process.reorder = function(data, design){
+  
+    for(K in 1:length(data)){
+
+        wells.data = names(data[[K]])
+        wells.to.match = design$PDEF$well
+        data[[K]] = data[[K]][match(wells.to.match, wells.data)]
+    }
+    
+    return(data)  
+}
 
 uscope.process.estimate.background = function(data, design){
   
@@ -797,6 +824,28 @@ uscope.process.remove.oof.pics = function(data){
 }
 
 
+## Returns the S number of pictures corresponding to a particular well and picture.
+## If 0 is given for the pic number, S numbers are returned for all pictures of the well.
+##
+uscope.get.image.index = function(plate=1, well, design, pic=0){
+
+    if( typeof(well) == "double"){
+        well = design$PDEF$well[well]
+    }
+
+    if(pic == 0){
+        s.positions = which(design$WELLS[[plate]] == well)
+    } else {
+        s.positions = which(design$WELLS[[plate]] == well & design$PICNUM[[plate]] == pic)
+    }
+
+    s.pos.res = rbind( as.numeric(design$PICNUM[[plate]][s.positions]), as.numeric(design$S.positions[[plate]][s.positions]))
+    rownames(s.pos.res) = c("PIC no.", "S no. ")
+    
+    return( s.pos.res )
+
+}
+
 uscope.process.get.means = function(data, design){
   
   n.samp = length(data)
@@ -832,6 +881,7 @@ uscope.process.get.means = function(data, design){
   mat.res = data.frame(mat.res)
   return(mat.res)
 }
+
 
 uscope.process.get.one.stat = function(design, data, plateNUM, col.of.interest, fun2use=mean){
   
@@ -1513,6 +1563,23 @@ init.result.folders = function(design){
 }
 
 
+## Counts the total number of cells in the given data structure
+uscope.count.cells = function(data){
+
+    for(K in 1:length(data)){
+
+        cols.to.sum = 0
+        
+        for(L in 1:length(data[[K]])){
+
+            cols.to.sum = cols.to.sum + NROW(data[[K]][[L]])
+        }
+
+        print(paste("For plate",K, "there is a total of ",cols.to.sum," cells"));
+    }
+}
+
+
 .BDtestOK = function(){
   
   # GOOD EXAMPLE FROM OR's EXPERIMENTS
@@ -1600,3 +1667,4 @@ init.result.folders = function(design){
   design = design.correct  
   design$DIR.res = "data/benjamin/"
 }  
+
