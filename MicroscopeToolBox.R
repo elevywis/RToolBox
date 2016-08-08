@@ -1,3 +1,5 @@
+source("/data/elevy/70_R_Data/bin/RToolBox/Multiwell.R")
+
 ########  OUTLINE OF ALL FUNCTIONS
 #
 ########  CORE FUNCTIONS (load / filter)
@@ -121,10 +123,19 @@ microscope.get.design = function(
                                     })
   
   if( nrow(microscope.design$PDEF) == 0 ){ stop("the plate definition file is empty") }
+
+  ## Checks that the column names are OK
+  if( sum(grepl("well",names(microscope.design$PDEF))) == 0){
+    stop("A column should be named 'well' -- perhaps you also need to check the case, e.g., Well will not work")
+  }
+
+  ## Adds zeros to well ids, e.g., changes A1 to A01 if needed
+  microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
+  
   if( nrow(microscope.design$PDEF) != FORMAT ){
 
       if( sum ( colnames(microscope.design$PDEF)=="Plate") ){
-          ## microscope.design$PDEF = split(
+          microscope.design$PDEF.split = split(microscope.design$PDEF,microscope.design$PDEF$Plate)          
       } else {
           warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")
       }
@@ -149,21 +160,12 @@ microscope.get.design = function(
           }
       }
   }
-  
-  
-  ## Checks that the column names are OK
-  if( sum(grepl("well",names(microscope.design$PDEF))) == 0){
-    stop("A column should be named 'well' -- perhaps you also need to check the case, e.g., Well will not work")
-  }
-  
+      
   for(each.ch in CHANELS){
     if( sum(grepl(each.ch,names(microscope.design$PDEF))) == 0 ){
       warning(paste0("The channel ",each.ch," is given in the experiment design but does not appear in the plate definition file"))
     }
   }
-
-  ## Adds zeros to well ids, e.g., changes A1 to A01 if needed
-  microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
   
   ## PLATE FORMAT 96/384
   microscope.design$FORMAT    =FORMAT  ##

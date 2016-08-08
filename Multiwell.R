@@ -17,7 +17,7 @@ get.96.by.col = function(){
 }
 
 get.384.by.row = function(){
-    letters = rep(LETTERS[1:16],rep(16,16))
+    letters = rep(LETTERS[1:16],rep(24,16))
     numbers = rep(gsub(" ","0",format(1:24,width=2)),16)
     return ( paste( letters, numbers, sep="") )    
 }
