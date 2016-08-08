@@ -1,4 +1,4 @@
-########  OUTLINE OF ALL FUNCTIONS 
+########  OUTLINE OF ALL FUNCTIONS
 #
 ########  CORE FUNCTIONS (load / filter)
 #
@@ -121,7 +121,14 @@ microscope.get.design = function(
                                     })
   
   if( nrow(microscope.design$PDEF) == 0 ){ stop("the plate definition file is empty") }
-  if( nrow(microscope.design$PDEF) != FORMAT ){ warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")}  
+  if( nrow(microscope.design$PDEF) != FORMAT ){
+
+      if( sum ( colnames(microscope.design$PDEF)=="Plate") ){
+          ## microscope.design$PDEF = split(
+      } else {
+          warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")
+      }
+  }  
   microscope.design$KEY=NULL
   
   if(length(KEY)>0){
@@ -840,7 +847,7 @@ uscope.get.image.index = function(plate=1, well, design, pic=0){
     }
 
     s.pos.res = rbind( as.numeric(design$PICNUM[[plate]][s.positions]), as.numeric(design$S.positions[[plate]][s.positions]))
-    rownames(s.pos.res) = c("PIC no.", "S no. ")
+    rownames(s.pos.res) = c("PIC no.", "S # ")
     
     return( s.pos.res )
 
