@@ -127,7 +127,7 @@ microscope.get.design = function(
   ## Checks that the column names are OK
   if( sum(grepl("well",names(microscope.design$PDEF))) == 0){
     stop("A column should be named 'well' -- perhaps you also need to check the case, e.g., Well will not work")
-  }
+}
 
   ## Adds zeros to well ids, e.g., changes A1 to A01 if needed
   microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
@@ -135,8 +135,19 @@ microscope.get.design = function(
   if( nrow(microscope.design$PDEF) != FORMAT ){
 
       if( sum ( colnames(microscope.design$PDEF)=="Plate") ){
-          microscope.design$PDEF.split = split(microscope.design$PDEF,microscope.design$PDEF$Plate)          
+          microscope.design$PDEF.split = split(microscope.design$PDEF,microscope.design$PDEF$Plate)
+          empty.plate = data.frame(well=get.384.by.row(), ord=1:384, stringsAsFactors=FALSE)
+
+          ## Now makes sure that lines in each plate match a well, even if empty or if no information is available.
+          for( each.plate in names(microscope.design$PDEF.split)){
+              microscope.design$PDEF.split[[each.plate]] = merge(empty.plate, microscope.design$PDEF.split[[each.plate]], by="well", all.x=TRUE)
+          }
+          
       } else {
+          microscope.design$PDEF.split = list()
+          empty.plate = data.frame(well=get.384.by.row(), ord=1:384, stringsAsFactors=FALSE)
+          microscope.design$PDEF.split[[1]] = merge(empty.plate, microscope.design$PDEF, by="well", all.x=TRUE)
+
           warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")
       }
   }  
@@ -180,7 +191,7 @@ microscope.get.design = function(
   for( each.folder in F){
     
     print(paste("Going through folder",each.folder))
-    if( !dir.exists(F) ){ stop("the directory given for the pictures does not exist") }
+    if( !dir.exists(each.folder) ){ stop("the directory given for the pictures does not exist") }
     
     if(substr(each.folder,nchar(each.folder),nchar(each.folder)) == "/"){
       microscope.design$F[K] = substr(each.folder,1,nchar(each.folder)-1)
@@ -321,7 +332,7 @@ uscope.process.reorder = function(data, design){
     for(K in 1:length(data)){
 
         wells.data = names(data[[K]])
-        wells.to.match = design$PDEF$well
+        wells.to.match = design$PDEF.split[[K]]$well
         data[[K]] = data[[K]][match(wells.to.match, wells.data)]
     }
     
