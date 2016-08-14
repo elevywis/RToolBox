@@ -236,3 +236,61 @@ get.proteome.table = function(REF=get.REF()){
   SC = SC.ord[ order(SC.ord$ord),]  
   return(SC)
 }
+
+
+## Loads all the yeast GO annotations
+##
+load.sc.GO = function(){
+  go.table = read.csv("/data/elevy/70_R_Data/TABLES/sc.GO.table")[,c(2,3,5,7,10,12)]
+  colnames(go.table)=c("ORF","Prot.name","name","type","evidence","desc")
+  TYPE=rep(0,length(go.table[,1]))
+  TYPE[go.table$type=="cellular_component"]="CC"
+  TYPE[go.table$type=="biological_process"]="BP"
+  TYPE[go.table$type=="molecular_function"]="MF"
+  go.table$type=TYPE
+
+  TYPE=rep(0,length(go.table[,1]))
+  TYPE[go.table$evidence=="manually curated"]=100
+  TYPE[go.table$evidence=="high-throughput"]=10
+  TYPE[go.table$evidence=="computational"]=1
+  go.table$evidence=TYPE  
+  return(go.table)
+}
+
+## Format the object given by load.sc.GO, and create CC/BP/MF specific objects
+## Min gives the minimum number of entries required per annotation to consider the annotation as valid.
+##
+format.GO = function(SC.GO, REF=get.REF(), type="CC", min=50){
+
+  SC.GO.sub = SC.GO[SC.GO$type == type,]
+
+  ### Retrieves all the names that have over X components
+  GO.names = -sort(-table(SC.GO.sub$name))
+  GO.names = names(GO.names[GO.names>min])
+
+  GO.names = GO.names[which(GO.names != "cellular_component")]
+  
+  SC.GO.sub = SC.GO.sub[SC.GO.sub$name %in% GO.names,]
+
+  SC.GO.sub = SC.GO.sub[SC.GO.sub$ORF %in% REF$ORF,]
+
+  ### Final table:
+  ### row=ORF, col=CCname, give=evidence code (0=nothing, 1=pred, 2=HT, 4=exp, 3=pred+HT, 5=pred+exp, 6=HT+exp, 7=all).
+  ###
+  SC.res = matrix(0, ncol=length(GO.names), nrow=NROW(REF))
+  rownames(SC.res) = REF$ORF
+  colnames(SC.res) = GO.names
+
+  SC.GO.sub$name = as.vector(SC.GO.sub$name)
+  SC.GO.sub$ORF = as.vector(SC.GO.sub$ORF)  
+  
+  for (i in 1:length(SC.GO.sub[,1])){
+    if(i %% 1000 == 0){ 
+      print(paste(i, "entries processed"))
+    }
+    SC.res[ SC.GO.sub$ORF[i], SC.GO.sub$name[i] ] = SC.res[ SC.GO.sub$ORF[i], SC.GO.sub$name[i] ] + SC.GO.sub$evidence[i]
+  }
+  SC.res.counts = colSums(SC.res>0)
+  SC.res = SC.res[ , which(SC.res.counts>min)]
+  return(SC.res)
+}

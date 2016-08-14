@@ -1,4 +1,5 @@
 source("/data/elevy/70_R_Data/bin/RToolBox/Multiwell.R")
+source("/data/elevy/70_R_Data/bin/RToolBox/general.R")
 
 ########  OUTLINE OF ALL FUNCTIONS
 #
@@ -235,6 +236,7 @@ microscope.load.data = function(design){
   K=1
   Nb.wells.witohut.res = 0
   cat("\n")
+  NCOL_ALL = 0
   for(each.plate in design$F){
     
     cat(paste("Processing plate ",each.plate,"\n"))
@@ -261,9 +263,16 @@ microscope.load.data = function(design){
       if( file.exists(res.file.name) ){                
         res.file = read.csv(res.file.name, sep="\t", row.names=c(1))
         cat(paste("It found a non empty file (",res.file.name,") and the number of columns is ",NCOL(res.file),"\n"))
+        res.file$pic=1
+
+        if(K==1){
+            NCOL_ALL=NCOL(res.file)
+        }
+        
         res.file = res.file[1,]
         res.file = res.file[ -c(1),]
-        write.csv(file="/tmp/empty_file.csv", x=res.file)
+        ## print(res.file)
+        write.csv(file="/tmp/empty_file.csv", x=res.file, row.names=FALSE)
         FILE.NOT.FOUND=0
       }
       file.num = file.num+1
@@ -312,6 +321,10 @@ microscope.load.data = function(design){
       } else {
         data[[K]][[WELL.index]] = rbind(data[[K]][[WELL.index]],res.file)
       }
+
+      if( NCOL(data[[K]][[WELL.index]]) != (NCOL_ALL) ) {
+          cat(paste("There is a problem with plate number",K," the number of columns recorded in the first plate (",(NCOL_ALL),") does not match this one (",NCOL(data[[K]][[WELL.index]]),")\n"))
+      }
       
       WELL.tmp = WELLS[N]
       
@@ -330,40 +343,49 @@ microscope.load.data = function(design){
 uscope.process.reorder = function(data, design){
   
     for(K in 1:length(data)){
-
         wells.data = names(data[[K]])
-        wells.to.match = design$PDEF.split[[K]]$well
-        data[[K]] = data[[K]][match(wells.to.match, wells.data)]
-    }
-    
+
+        if(length(design$PDEF.split)>1){
+            wells.to.match = design$PDEF.split[[K]]$well
+            data[[K]] = data[[K]][match(wells.to.match, wells.data)]
+        } else {
+            wells.to.match = design$PDEF.split[[1]]$well
+            data[[K]] = data[[K]][match(wells.to.match, wells.data)]
+        }
+    }    
     return(data)  
 }
 
 uscope.process.estimate.background = function(data, design){
   
-  design$BACKGROUND=list()
-  
-  for(K in 1:length(data)){
+    design$BACKGROUND=list()
     
-    design$BACKGROUND[[K]]=list()
-    
-    for(each.ch in design$CHANELS){
-      
-      cols.fluo = intersect(grep("_int_b9",colnames(data[[K]][[1]])),grep(paste("^",each.ch,sep=""),colnames(data[[K]][[1]])))
-      
-      tmp=sapply(data[[K]],function(x){
-        if(length(x[,1])==0){
-          return(NA)
-        } else {
-          return(min(x[,cols.fluo]))
-        }
-      })            
-      
-      design$BACKGROUND[[K]][[each.ch]] = median(tmp, na.rm=TRUE)
-      
+    for(K in 1:length(data)){
+        
+        design$BACKGROUND[[K]]=list()
+        
+        for(each.ch in design$CHANELS){
+            
+            cols.fluo = intersect(grep("_int_b9",colnames(data[[K]][[1]])),grep(paste("^",each.ch,sep=""),colnames(data[[K]][[1]])))
+            
+            tmp=sapply(data[[K]],function(x){
+                if(length(x[,cols.fluo]) <= 20){
+                    return(NA)
+                } else {
+                    return( min(x[,cols.fluo]) )
+                }
+            })            
+
+            if(median(tmp, na.rm=TRUE) < 80){
+                print(paste("Plate ",K," and chanel ",each.ch,": strange, median below 80 -- tmp="))
+                print(tmp)
+            }
+            
+            design$BACKGROUND[[K]][[each.ch]] = median(tmp, na.rm=TRUE)
+            
     }    
-  }    
-  return(design)  
+    }    
+    return(design)  
 }
 
 ###
@@ -902,26 +924,42 @@ uscope.process.get.means = function(data, design){
   return(mat.res)
 }
 
+uscope.process.get.one.stat.allp = function(design, data, col.of.interest, fun2use=mean, info){
 
-uscope.process.get.one.stat = function(design, data, plateNUM, col.of.interest, fun2use=mean){
+    my.res = uscope.process.get.one.stat(design = design, data = data, plateNUM=1, col.of.interest=col.of.interest, fun2use=fun2use, info=info)
+
+    print(dim(my.res))
+    
+    if(length(data)>1){
+
+        for(K in 2:length(data)){
+            my.res = rbind( my.res, uscope.process.get.one.stat(design = design, data = data, plateNUM=K, col.of.interest=col.of.interest, fun2use=fun2use, info=info) )
+            print(dim(my.res))
+        }
+    }
+    return(my.res)
+}
+
+
+uscope.process.get.one.stat = function(design, data, plateNUM, col.of.interest, fun2use=mean, info){
   
   
   my.col = grep(col.of.interest, colnames(data[[plateNUM]][[1]]))
   
   if( length(my.col)==0 | length(my.col) > 1){
     if(length(my.col)==0){
-      stop(paste("no column was found to match the chanel name", each.CH))
+      stop(paste("no column was found to match the chanel name", my.col))
     } else {
-      stop(paste("more than one column was found to match the chanel name", each.CH))
+      stop(paste("more than one column was found to match the chanel name", my.col))
     }
   }       
   
   
-  res = sapply(data[[plateNUM]], function(x){ return( fun2use(x[,my.col], na.rm=TRUE) ) } )
-  constructs = design$PDEF[,design$CHANELS]
+  res = sapply(data[[plateNUM]], function(x){ return( fun2use(x[,my.col]) ) } )
+  constructs = design$PDEF.split[[plateNUM]][, info]
   
   my.RES = data.frame( mean = res, id = constructs, stringsAsFactors = FALSE, row.names = NULL)
-  
+  #print(dim(my.RES))
   return(my.RES)
 }
 
@@ -1013,6 +1051,70 @@ plot.reps = function(YFPpr="GPD",CHpr="GPD",YFPad="no",CHad="no",plate=2,design,
   }
   
 }
+
+####
+#### Plots any property on the plates to help detect plate-specific effects.
+#### TODO: colorscale should be added but that will require using a different layout for the results to make space on one side
+####       alternatively, colorscale could be written in a different file -- that's probably the easiest.
+####
+diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9"){
+    if(length(data)==1){
+        par(mfrow=c(1,1), mai=c(1,1,1,1))
+    }
+    if(length(data)==2){
+        par(mfrow=c(1,2), mai=c(1,1,1,1))
+    }
+    if(length(data) > 2 & length(data) <= 4){
+        par(mfrow=c(2,2), mai=c(1,1,1,1))
+    }
+    if(length(data) > 4 & length(data) <= 6){
+        par(mfrow=c(2,3), mai=c(1,1,1,1))
+    }
+    if(length(data) > 6 & length(data) <= 9){
+        par(mfrow=c(3,3), mai=c(1,1,1,1))
+    }
+    if(length(data) > 9 & length(data) <= 12){
+        par(mfrow=c(3,4), mai=c(0.2,0.5,0.5,0.15))
+    }
+    if(length(data) > 12 & length(data) <= 16){
+        par(mfrow=c(4,4))
+    }
+    if(length(data) > 16 & length(data) <= 20){
+        par(mfrow=c(4,5))
+    }
+    if(length(data) > 20 & length(data) <= 25){
+        par(mfrow=c(5,5))
+    }
+
+    check.range = c()
+    for( K in 1:length(data)){
+        check.range = c(check.range, uscope.process.get.one.stat(design = design.maya, data = data.maya2, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"))$mean)
+    }
+
+    check.range = check.range[-which(is.nan(check.range))]
+    
+    my.range = quantile(check.range, prob=seq(0,1,len=21), na.rm=TRUE)
+    print(my.range)
+    my.COL = c(rgb(0.6,0.1,0.1), B2O.COL(20), rgb(1,1,1))     
+    
+    for( K in 1:length(data)){
+        res.tmp = uscope.process.get.one.stat(design = design.maya, data = data.maya2, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"))
+        res.tmp$mean[is.na(res.tmp$mean)]=0
+        to.plot = matrix(res.tmp$mean, byrow=TRUE, ncol=24, nrow=16)
+        if(design$FORMAT == 96){
+            image(rotate.matrix(to.plot), axes=FALSE, main=paste("Plate  ",K), zlim=c(0,10))
+            axis(2, at=seq(0,1,length=8), lab=LETTERS[8:1])
+            axis(3, at=seq(0,1,length=12), lab=1:12)
+        }
+        if(design$FORMAT == 384){
+            image(rotate.matrix(to.plot), axes=FALSE, main=paste("Plate  ",K), breaks=c(-2^16, my.range, +2^16) , col=my.COL )
+            axis(2, at=seq(0,1,length=16), lab=LETTERS[16:1])
+            axis(3, at=seq(0,1,length=24), lab=1:24)
+        }
+    }
+}
+
+
 
 ###
 ### finding the noise and noise component using formulas in the supplementarry of Elowitz et al. science 2002
@@ -1394,16 +1496,17 @@ uscope.process.norm = function(data,colG,colR){
 }
 
 ###
-### Merge folders after laser problems
+### Merge multiple folders corresponding to the acquisition of one plate.
 ### With 8PPW --> "Stage769", "E1.1"
+###
+### //!\\ position.stop should be the supposed number of the first picture to be copied from the second folder.
 ###
 merge.folders = function(folders=
                            c("/media/elusers/data/microscope/or/06noise/151213-YPD_005_Sat-1",
                              "/media/elusers/data/microscope/or/06noise/151213-YPD_005_Sat-1.2"),
                          positions.stop=c(769)){
   
-  ## the first element of position.stop will be the first number taken by s1 from the next directory.
-  
+  ## the first element of position.stop will be the first number taken by s1 from the next directory.  
   print(paste("Going through folder",folders[1]))
   
   for( each.F in 1:length(folders)){
@@ -1436,13 +1539,31 @@ merge.folders = function(folders=
   stk.files = list.files(path=folders[2], pattern=".[stk|tif]$")
   for( each.file in stk.files){
     #print(each.file)
-    s.number = as.numeric(sub(pattern="^.*_s([0-9]+)\\..*$", replacement="\\1", x=each.file, perl=TRUE))
-    new.file = sub("_s[0-9]+\\.",paste("_s",(s.number+new.index-1),"\\.",sep=""), each.file)        
-    #print(paste("FROM: ",paste(folders[2],"/",each.file,sep="") , " TO=", paste(folders[1],"/",new.file,sep="")))
-    if( ! file.exists(paste(folders[1],"/",new.file,sep="")) ){
-      file.rename(from=paste(folders[2],"/",each.file,sep=""), to=paste(folders[1],"/",new.file,sep=""))        
-    }
+      s.number = as.numeric(sub(pattern="^.*_s([0-9]+)\\..*$", replacement="\\1", x=each.file, perl=TRUE))
+
+    ##
+      new.file = sub("_s[0-9]+\\.",paste("_s",(s.number+new.index-1),"\\.",sep=""), each.file)        
+      
+      #print(paste("FROM: ",paste(folders[2],"/",each.file,sep="") , " TO=", paste(folders[1],"/",new.file,sep="")))
+      
+      if( ! file.exists(paste(folders[1],"/",new.file,sep="")) ){
+          file.rename(from=paste(folders[2],"/",each.file,sep=""), to=paste(folders[1],"/",new.file,sep=""))        
+      }
   }
+}
+
+## 
+## After two folders have been merged, files should be renamed so that they are consistent.
+##
+rename.basename.folder = function(folder, basename = "MayaGFP_plate91"){
+
+    stk.files = list.files(path=folder, pattern=".[stk|tif]$")
+    for (each.file in stk.files) {
+        file.second.part = sub(pattern="^(.*)(_w[0-9].*)$", replacement="\\2", x=each.file, perl=TRUE)
+        new.file = paste(basename, file.second.part, sep="")
+        file.rename(from=paste(folder,"/",each.file,sep=""), to=paste(folder,"/",new.file,sep=""))
+        #print(paste("FROM: ",paste(folder,"/",each.file,sep="") , " TO=", paste(folder,"/",new.file,sep="")))        
+    }    
 }
 
 toto = function(){
