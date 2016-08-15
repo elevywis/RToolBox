@@ -294,3 +294,15 @@ format.GO = function(SC.GO, REF=get.REF(), type="CC", min=50){
   SC.res = SC.res[ , which(SC.res.counts>min)]
   return(SC.res)
 }
+
+
+###
+### Loads localization data from Maya
+###
+get.loc.maya = function(REF){
+    maya.loc = read.csv(file="/data/elevy/70_R_Data/MATRICES/sc.maya.localization.csv")
+    colnames(maya.loc)[6] = "Control.Localization"
+    maya.loc.aligned = merge(x=REF[,c("ORF","ord")], y=maya.loc, by="ORF", all.x=TRUE)
+    maya.loc.aligned = maya.loc.aligned[ order(maya.loc.aligned$ord),]
+    return(maya.loc.aligned)
+}

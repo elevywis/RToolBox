@@ -40,6 +40,7 @@ my.MEAN = function(x){
         return(x[1])
     }
 }
+
 ## MEDIAN function that tolerate strings to use in aggregates.
 ##
 my.MEDIAN = function(x){
@@ -50,6 +51,7 @@ my.MEDIAN = function(x){
         return(x[1])
     }
 }
+
 
 
 ######################################################################

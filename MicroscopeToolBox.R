@@ -404,6 +404,19 @@ uscope.process.add.area = function(data){
   return(data)
 }
 
+
+uscope.process.add.ncells = function(data){
+  
+  for(K in 1:length(data)){
+    
+      for(L in 1:length(data[[K]])){
+#          ncells = matrix(x=NROW(data[[K]][[L]]), ncol=1, nrow=NROW(data[[K]][[L]]))          
+ #         data[[K]][[L]] = cbind(data[[K]][[L]], ncells)                       
+      }
+  }
+  return(data)
+}
+
 ###
 
 uscope.process.remove.first.pic = function(data){
@@ -1052,12 +1065,15 @@ plot.reps = function(YFPpr="GPD",CHpr="GPD",YFPad="no",CHad="no",plate=2,design,
   
 }
 
+
+
+
 ####
 #### Plots any property on the plates to help detect plate-specific effects.
 #### TODO: colorscale should be added but that will require using a different layout for the results to make space on one side
 ####       alternatively, colorscale could be written in a different file -- that's probably the easiest.
 ####
-diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9"){
+diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9", fun2use=mean){
     if(length(data)==1){
         par(mfrow=c(1,1), mai=c(1,1,1,1))
     }
@@ -1077,28 +1093,29 @@ diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9"){
         par(mfrow=c(3,4), mai=c(0.2,0.5,0.5,0.15))
     }
     if(length(data) > 12 & length(data) <= 16){
-        par(mfrow=c(4,4))
+        par(mfrow=c(4,4), mai=c(0.2,0.5,0.5,0.15))
     }
     if(length(data) > 16 & length(data) <= 20){
-        par(mfrow=c(4,5))
+        par(mfrow=c(4,5), mai=c(0.2,0.5,0.5,0.15))
     }
     if(length(data) > 20 & length(data) <= 25){
-        par(mfrow=c(5,5))
+        par(mfrow=c(5,5), mai=c(0.2,0.5,0.5,0.15))
     }
 
     check.range = c()
     for( K in 1:length(data)){
-        check.range = c(check.range, uscope.process.get.one.stat(design = design.maya, data = data.maya2, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"))$mean)
+        check.range = c(check.range, uscope.process.get.one.stat(design = design.maya, data = data, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"), fun2use=fun2use)$mean)
     }
 
-    check.range = check.range[-which(is.nan(check.range))]
-    
+    print(check.range[1:100])
+    check.range = check.range[which(is.finite(check.range))]
+    print(check.range[1:100])
     my.range = quantile(check.range, prob=seq(0,1,len=21), na.rm=TRUE)
     print(my.range)
     my.COL = c(rgb(0.6,0.1,0.1), B2O.COL(20), rgb(1,1,1))     
     
     for( K in 1:length(data)){
-        res.tmp = uscope.process.get.one.stat(design = design.maya, data = data.maya2, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"))
+        res.tmp = uscope.process.get.one.stat(design=design, data=data, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"), fun2use=fun2use)
         res.tmp$mean[is.na(res.tmp$mean)]=0
         to.plot = matrix(res.tmp$mean, byrow=TRUE, ncol=24, nrow=16)
         if(design$FORMAT == 96){
