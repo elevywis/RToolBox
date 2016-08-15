@@ -1,52 +1,6 @@
 source("/data/elevy/70_R_Data/bin/RToolBox/Multiwell.R")
 source("/data/elevy/70_R_Data/bin/RToolBox/general.R")
 
-########  OUTLINE OF ALL FUNCTIONS
-#
-########  CORE FUNCTIONS (load / filter)
-#
-#  microscope.get.design = function(
-#  microscope.load.data = function(design){
-#  uscope.process.reorder = function(data){
-#  uscope.process.add.area = function(data){
-#  uscope.process.remove.first.pic = function(data){
-#  uscope.process.remove.small = function(data){
-#  uscope.process.BF = function(data){
-#  uscope.process.centroid = function(data){
-#  uscope.process.remove.centroid.outliers = function(data, min=200,max=900){
-#  uscope.process.remove.BF.outliers = function(data, cutoff){
-#  uscope.process.remove.background = function(data, design){
-#  uscope.process.filter.fluo = function(data, PERCENT){
-#  uscope.process.remove.outlier.pics = function(data){
-#  uscope.process.remove.oof.pics = function(data){
-
-########  SUBSETTING FUNCTIONS (find a well / position given biological paramaters)
-#
-#  get.well = function(PROM1, PROT1, PROM2, PROT2, design, plate=1){
-#  find.ind = function(PROM1,PROM2,PROT1,PROT2,data){#
-
-########  DATA analysis function (compute quantities / plot)
-#
-#  uscope.process.get.means = function(data, design){
-#  boxplot.means = function(data, design){
-#  make.boxplot = function(data,design,plate,proms = c("TEF","GPD"),prots = c("no","D16","DH"),marks = c("optY","optCh"),PDF){
-#  cor.show = function(prom1="GPD",prom2="GPD",prot1="no",prot2="no",plate=2,design,data.means){
-#  plot.reps = function(YFPpr="GPD",CHpr="GPD",YFPad="no",CHad="no",plate=2,design,data){
-#  one.boxplot = function(PROMS1,PROMS2,PROTS1,PROTS2,data){ # data is noise table 
-#  make.box.simple = function(proms = c("TEF","GPD"),prots = c("no","cODC","D16","DH"),
-#
-
-######## Function we probably don't need but keep
-#
-#  uscope.process.norm = function(data,colG,colR){
-#  noise.by.elowitz = function(data,design,GFP="norm.GFP",RFP="norm.RFP"){   
-#  noise.by.emmanuel = function(data,design,GFP="norm.GFP",RFP="norm.RFP"){
-#  noise.contribution = function(data,design,GFP="norm.GFP",RFP="norm.RFP"){
-#
-
-#
-# This is a test
-#
 ###
 ## Returns the design of an experiment 
 ##
@@ -86,7 +40,7 @@ microscope.get.design = function(
   ##
   ##
   microscope.design$DIR.res = DIR.res
-  if( ! dir.exists ( DIR.res ) ){ stop("the directory given for the results does not exist") }
+  if( ! file.exists ( DIR.res ) ){ stop("the directory given for the results does not exist") }
   
   ## Where files are located --
   ## if multiple plates it may be several folders
@@ -192,7 +146,7 @@ microscope.get.design = function(
   for( each.folder in F){
     
     print(paste("Going through folder",each.folder))
-    if( !dir.exists(each.folder) ){ stop("the directory given for the pictures does not exist") }
+    if( !file.exists(each.folder) ){ stop("the directory given for the pictures does not exist") }
     
     if(substr(each.folder,nchar(each.folder),nchar(each.folder)) == "/"){
       microscope.design$F[K] = substr(each.folder,1,nchar(each.folder)-1)
@@ -1533,7 +1487,7 @@ merge.folders = function(folders=
   }
   
   ### First I need to move all doubles to a new directory (i.e., all files from first screen equal or above the number given
-  if( ! dir.exists ( paste(folders[1],"_BAK",sep="") ) ){
+  if( ! file.exists ( paste(folders[1],"_BAK",sep="") ) ){
     print(paste("Creating directory", paste(folders[1],"_BAK",sep="")))
     dir.create(paste(folders[1],"_BAK",sep=""), showWarnings = TRUE)
   } else {
@@ -1711,10 +1665,10 @@ uscope.get.report.mean = function(data, design, res.name=""){
 ## General directory to save images and reports
 init.result.folders = function(design){
   
-  if( ! dir.exists ( design$DIR.res ) ){ stop("the directory given for the results does not exist") }
+  if( ! file.exists ( design$DIR.res ) ){ stop("the directory given for the results does not exist") }
   
   for( each.plate in design$D){
-    if( ! dir.exists ( paste(design$DIR.res,"/", each.plate,sep="") ) ){
+    if( ! file.exists ( paste(design$DIR.res,"/", each.plate,sep="") ) ){
       dir.create(paste(design$DIR.res,"/", each.plate,sep=""), showWarnings = TRUE)
     }
   }
