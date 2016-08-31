@@ -105,7 +105,14 @@ microscope.get.design = function(
 
           warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")
       }
-  }  
+
+  } else {
+      microscope.design$PDEF.split = list()
+      for( each.plate in 1:length(microscope.design$D)){
+          microscope.design$PDEF.split[[each.plate]] = microscope.design$PDEF
+      }
+  }
+  
   microscope.design$KEY=NULL
   
   if(length(KEY)>0){

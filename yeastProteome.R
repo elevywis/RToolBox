@@ -306,3 +306,168 @@ get.loc.maya = function(REF){
     maya.loc.aligned = maya.loc.aligned[ order(maya.loc.aligned$ord),]
     return(maya.loc.aligned)
 }
+
+
+## Loads PPI data.
+## PCA PPI => 18467557
+##
+load.PPIs = function(REF = get.REF(), recalculate=FALSE, remove.PMID=c(), only=FALSE ){
+
+  if( file.exists("/data/elevy/70_R_Data/PPI.mat.aligned") & !recalculate ){
+
+    print(paste(date(), "Reading the file ..."))
+    matrix.square = as.matrix(read.table(file="/data/elevy/70_R_Data/PPI.mat.aligned", header=TRUE, row.names=c(1), sep=" "))
+    print(paste(date(), "Done"))
+    
+  } else {
+    
+    ORD = data.frame( ORF = as.vector(REF[,1]), ord=1:6144)
+    matrix.square = matrix(ncol=6144,nrow=6144, 0)
+    colnames(matrix.square) = REF[,1]
+    rownames(matrix.square) = REF[,1]
+
+    PPI = read.delim(file="/data/elevy/70_R_Data/TABLES/sc.BIOGRID.3.2.103.tab", header = TRUE, sep = "\t", quote="\"")
+    PPI = PPI[ PPI$Experimental.System.Type == "physical",]
+    PPI = PPI[ PPI$Experimental.System != "Affinity Capture-RNA",]
+
+    ### 80802 interactions
+
+    ###
+    ### Here I want a high confidence dataset - first, order all interactions.
+    ### 
+    node.from = as.vector(PPI$Systematic.Name.Interactor.A)
+    node.to   = as.vector(PPI$Systematic.Name.Interactor.B)
+    node.PMID = as.vector(PPI$Pubmed.ID)
+
+    #### 1 - sort by alphabetical order each interaction
+    ft <- cbind(node.from, node.to)
+    node.direction = apply( ft, 1, function(x) return(x[1]>x[2]))
+
+    #### 2 - creates a list of directed interactions, i.e., each pair has always the same direction.
+    node.from.ord = node.from
+    node.to.ord   = node.to
+    node.from.ord[node.direction] = node.to[node.direction]    # When TO is smaller, replace FROM with TO
+    node.to.ord[node.direction]    = node.from[node.direction] #     and             replace TO with FROM --> HERE all INTs are ordered
+
+    ft.ord <- cbind(node.from.ord, node.to.ord, node.PMID)
+
+    ft.tmp = c()
+    
+    if( length(remove.PMID) > 0){
+
+      for( PMID in remove.PMID){
+
+        if(only){
+          ft.tmp = rbind(ft.tmp, ft.ord[ which(ft.ord[,3]==PMID),])
+        } else {
+          ft.ord = ft.ord[ which(ft.ord[,3]!=PMID),]
+        }
+      }
+    }
+
+    if(only){
+      ft.ord=ft.tmp
+    }
+    
+    all.ints = apply( ft.ord, 1, function(x) paste(x, collapse="%") )
+    all.ints = unique(all.ints)
+    ft.ord.uniq = matrix(unlist(strsplit(all.ints,"%")), ncol=3, byrow=TRUE)
+
+     # length(ft.ord.uniq) 73106
+
+    ft.ppi = ft.ord.uniq[,1:2]
+    all.ints.pairs = apply( ft.ppi, 1, function(x) paste(x, collapse="%") )
+    ppi.table = table(all.ints.pairs)
+    all.pairs = names(ppi.table)
+    all.pairs.ppi = matrix(unlist(strsplit(all.pairs,"%")), ncol=2, byrow=TRUE)
+    all.pairs.ppi = cbind(all.pairs.ppi, as.vector(ppi.table))
+    
+    table = all.pairs.ppi
+    present.1 = table[,1] %in% REF[,1]
+    present.2 = table[,2] %in% REF[,1]
+
+    table = table[ present.1 & present.2,]
+
+    col.i = data.frame( ORF=table[,1], pos.i = 1:(length(table[,1])) , sign= table[,3] )
+    col.j = data.frame( ORF=table[,2], pos.j = 1:(length(table[,1])) , sign= table[,3] )
+
+    col.i = merge(col.i, ORD);  col.i = col.i[ order(col.i$pos.i),]
+    col.j = merge(col.j, ORD);  col.j = col.j[ order(col.j$pos.j),]
+
+    matrix.square[ (col.i$ord-1)*length(ORD[,1]) + col.j$ord ]= as.numeric(as.vector(col.i$sign))
+    matrix.square[ (col.j$ord-1)*length(ORD[,1]) + col.i$ord ]= as.numeric(as.vector(col.i$sign))
+
+    if( length(remove.PMID)==0){
+      write.table(matrix.square, file="/data/elevy/70_R_Data/PPI.mat.aligned", quote=FALSE, col.names=TRUE, row.names=TRUE, sep=" ")
+    }
+  }
+  return(matrix.square)
+}
+
+
+##
+## Takes a SQUARE binary matrix with rows carrying labels --> returns a two column table
+## e.g.,
+## prot1 prot4
+## prot1 prot10
+## prot2 prot34
+## ... etc
+##
+MAT2LIST = function(MAT){
+
+  if(NROW(MAT) != NCOL(MAT)){
+    print("Error, the matrix must be square")
+    return()   
+  } else {
+    LABS = rownames(MAT)
+    MAT = MAT*lower.tri(MAT)
+    all.ints = c()    
+    tmp=sapply(1:NCOL(MAT), function(x){ if( sum(MAT[x,]==1) > 0) { all.ints <<- rbind(all.ints, cbind(LABS[x], LABS[ MAT[x,]==1]) )} ;1 } )
+  }
+  return(all.ints)
+}
+
+##
+## Takes a SQUARE binary matrix with rows carrying labels --> returns a list for all pairs > 0 and also gives associated value (number of papers)
+##
+MAT2LIST2 = function(MAT){
+
+  if(NROW(MAT) != NCOL(MAT)){
+    print("Error, the matrix must be square")
+    return()   
+  } else {
+    LABS = rownames(MAT)
+    MAT = MAT*lower.tri(MAT)
+    all.ints = c()    
+    tmp=sapply(1:NCOL(MAT), function(x){ if( sum(MAT[x,]>0) > 0) { all.ints <<- rbind(all.ints, cbind(LABS[x], LABS[ MAT[x,]>=1], MAT[x,MAT[x,]>=1] ) )} ;1 } )
+  }
+  return(all.ints)
+}
+
+##
+## Takes a list carrying labels --> returns a SQUARE binary matrix
+##
+LIST2MAT = function(REF = get.REF(), LIST){
+
+  vals=c()
+  if(NCOL(LIST) == 3){
+    vals=LIST[,3]
+  } else {
+    vals = rep(1,NROW(LIST))
+  }
+  
+  LIST = LIST[ LIST[,1] %in% REF[,1] & LIST[,2] %in% REF[,1] ,]
+  my.matrix = matrix(ncol=NROW(REF), nrow=NROW(REF),0)
+  colnames(my.matrix) = REF[,1]
+  rownames(my.matrix) = REF[,1]
+  tmp = sapply(1:NROW(LIST), function(x){
+    if(x %% 1000 == 0){print(x)};
+    my.matrix[LIST[x,1], LIST[x,2]] <<- vals[x] ;
+    my.matrix[LIST[x,2], LIST[x,1]] <<- vals[x] } )
+
+  ## SETS all non defined lines/columns to NA
+  #na.cols = rowSums(my.matrix)==0
+  #my.matrix[na.cols,na.cols]=NA  
+  print(sum(my.matrix, na.rm=TRUE))
+  return(my.matrix)
+}
