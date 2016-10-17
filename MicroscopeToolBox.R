@@ -19,7 +19,7 @@ microscope.get.design = function(
 ){
   
   if(length(F) != length(D)){
-    warning("There is a problem, there should be one short description/code for each folder provided")
+      warning("There is a problem, there should be one short description/code (given in D) for each folder provided")
   }
   
   microscope.design = list()
