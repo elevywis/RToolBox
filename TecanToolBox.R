@@ -244,14 +244,15 @@ plot.a.strain = function(strain.no, data, cond=1, rep=1, main, design){
 plot.a.strain.duplex = function(strain.no, data, cond=1, rep=1, main, design){
     par(mai=c(1,1,1,1))
     ## First, plots the OD
-    plot(design$time, data[[design$CH[1]]][[cond]][[rep]][strain.no,], "l", xlab="Time (minutes)", axes=FALSE, ylab="GFP", main=main)
+    plot(design$time, data[[design$CH[1]]][[cond]][[rep]][strain.no,], "l", xlab="Time (minutes)", axes=FALSE, ylab="RFP", main=main)
     axis(1)
     par(new=TRUE)
-    plot(design$time, data[[design$CH[2]]][[cond]][[rep]][strain.no,], col="dark green", "l", axes=FALSE, xlab="", ylab="")
+    plot(design$time, data[[design$CH[2]]][[cond]][[rep]][strain.no,], col="yellow ", "l", axes=FALSE, xlab="", ylab="", lwd=3)
     axis(4)
     par(new=TRUE)
-    plot(design$time, data[[design$CH[3]]][[cond]][[rep]][strain.no,], col="dark red","l", axes=FALSE, xlab="", ylab="")    
+    plot(design$time, data[[design$CH[3]]][[cond]][[rep]][strain.no,], col="dark red","l", axes=FALSE, xlab="", ylab="", lwd=3)    
     axis(2)
+    abline(h=c(1000,2500), lty=2, col="dark red")
     abline(h=c(1000,2500), lty=2, col="dark red")
 }
 
@@ -307,7 +308,7 @@ get.spline.values = function(data, design, smooth=0.4){
                                 
                 for (each.strain in 1:NROW(data[[each.CH]][[each.cond]][[each.repli]]) ){
                     
-                    fit= gcFitSpline(time=design$time, data = KO.data.ori[[each.CH]][[each.cond]][[each.repli]][each.strain,], control=grofit.control(smooth.gc=smooth))
+                    fit= gcFitSpline(time=design$time, data = data[[each.CH]][[each.cond]][[each.repli]][each.strain,], control=grofit.control(smooth.gc=smooth))
                     my.res[[each.CH]][[each.cond]][[each.repli]][each.strain,] = 
                         predict(fit$spline, design$time)$y
                 }
