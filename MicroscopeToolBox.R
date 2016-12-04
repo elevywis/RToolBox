@@ -437,9 +437,12 @@ uscope.process.BF = function(data){
     for(L in 1:length(data[[K]])){
       
       PICS = as.numeric(unique(data[[K]][[L]]$pic))
+
+      data[[K]][[L]]$in.focus.d = double( length(data[[K]][[L]]$pic) )
+      data[[K]][[L]]$out.focus.d = double( length(data[[K]][[L]]$pic) )
       
       for(PIC in PICS){
-        
+
         BF.info   = data[[K]][[L]][data[[K]][[L]]$pic==PIC, cols.in.focus]
         areas     = data[[K]][[L]][data[[K]][[L]]$pic==PIC, AREA]
         area.info = matrix(areas, ncol=NCOL(BF.info), nrow=NROW(BF.info), byrow=FALSE)
@@ -454,6 +457,7 @@ uscope.process.BF = function(data){
         BF.dist   = as.vector(apply(BF.norm,1,function(x){ sum((x-BF.mean)^2) }))
         data[[K]][[L]]$out.focus.d[data[[K]][[L]]$pic==PIC] = (rank(BF.dist) / length(BF.dist))
       }
+      
     }
   }
   return(data)
