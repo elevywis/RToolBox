@@ -87,8 +87,8 @@ microscope.get.design = function(
   ## Adds zeros to well ids, e.g., changes A1 to A01 if needed
     microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
 
-    microscope.design$PDEF$Row    = gsub(HSG.design$PDEF$well, pattern="[0-9]+", rep="")
-    microscope.design$PDEF$Column = as.numeric(gsub(HSG.design$PDEF$well, pattern="[A-Z]+", rep=""))    
+    microscope.design$PDEF$Row    = gsub(microscope.design$PDEF$well, pattern="[0-9]+", rep="")
+    microscope.design$PDEF$Column = as.numeric(gsub(microscope.design$PDEF$well, pattern="[A-Z]+", rep=""))    
     if( nrow(microscope.design$PDEF) > FORMAT ){
 
       if( sum ( colnames(microscope.design$PDEF)=="Plate") ){
@@ -1487,6 +1487,13 @@ get.well = function(PROM1, PROT1, PROM2, PROT2, design, plate=1){
   wells = design$PDEF$well[indexes]
   s.positions = design$S.positions[[plate]][which(design$WELLS[[plate]] %in% wells)]
   return(list( DEF=design$PDEF[indexes,], pos=s.positions) )
+}
+
+
+get.sNUM = function(design, plate=1, well){
+    positions = design$WELLS[[plate]] %in% c(well)
+    s.positions = design$S.positions[[plate]][positions]
+    return(as.numeric(s.positions))
 }
 
 
