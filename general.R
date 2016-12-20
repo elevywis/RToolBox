@@ -105,7 +105,9 @@ is.binary =  function(x) {
 }
 
 # Counts number of NA or not-NA values
-sum.na <- function (x,notNA=FALSE){ sum(is.na(x) == !notNA) }
+sum.na <- function (x,notNA=FALSE){ if(is.null(x)){ return(NULL) }else{ sum(is.na(x) == !notNA) } }
+# Counts number of not-NA values
+sum.notNA = function(x){ sum.na(x,notNA = TRUE) }
 # Counts number of unique values
 Ulen = function(x){ length(unique(x)) }
 
