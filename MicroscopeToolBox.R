@@ -12,7 +12,7 @@ microscope.get.design = function(
     FORMAT=384,                                                              # To be updated by user
     CHANELS=c("GFP"),                                                        # To be updated by user
     DIR.res = "/data/elevy/00_Papers/008_codon/duplexAna/figs/",             # To be updated by user
-    KEY=c("/media/elusers/data/microscope/plate_defs/Duplex_384_key.csv"),   # To be updated by user or leave empty
+    KEY=c(),                                                                 # To be updated by user or leave empty "/media/elusers/data/microscope/plate_defs/Duplex_384_key.csv"
     MEASURE.COL = "_int_b5",                                                 # Should not change
     OUT=c("_output"),                                                         # Should not change
     MINCELLNUM=20
@@ -81,13 +81,15 @@ microscope.get.design = function(
 
   ## Checks that the column names are OK
   if( sum(grepl("well",names(microscope.design$PDEF))) == 0){
-    stop("A column should be named 'well' -- perhaps you also need to check the case, e.g., Well will not work")
+      stop("A column should be named 'well' -- perhaps you also need to check the case, e.g., Well will not work")
 }
 
   ## Adds zeros to well ids, e.g., changes A1 to A01 if needed
-  microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
-  
-  if( nrow(microscope.design$PDEF) != FORMAT ){
+    microscope.design$PDEF$well = gsub(microscope.design$PDEF$well,pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
+
+    microscope.design$PDEF$Row    = gsub(microscope.design$PDEF$well, pattern="[0-9]+", rep="")
+    microscope.design$PDEF$Column = as.numeric(gsub(microscope.design$PDEF$well, pattern="[A-Z]+", rep=""))    
+    if( nrow(microscope.design$PDEF) > FORMAT ){
 
       if( sum ( colnames(microscope.design$PDEF)=="Plate") ){
           microscope.design$PDEF.split = split(microscope.design$PDEF,microscope.design$PDEF$Plate)
@@ -106,11 +108,17 @@ microscope.get.design = function(
           warning(paste("the format specified (",FORMAT," wells) does not correspond to this plate defition file"), sep="")
       }
 
-  } else {
-      microscope.design$PDEF.split = list()
-      for( each.plate in 1:length(microscope.design$D)){
-          microscope.design$PDEF.split[[each.plate]] = microscope.design$PDEF
-      }
+    } else {
+
+        if(  nrow(microscope.design$PDEF) == FORMAT ){ 
+            microscope.design$PDEF.split = list()
+            for( each.plate in 1:length(microscope.design$D)){
+                microscope.design$PDEF.split[[each.plate]] = microscope.design$PDEF
+            }
+        } else {            
+            stop("The plate definition file should contain at least as many lines as the plate format")
+        }
+      
   }
   
   microscope.design$KEY=NULL
@@ -179,7 +187,26 @@ microscope.get.design = function(
     microscope.design$WELLS[[K]]       = sub("Stage([0-9]+), ([A-Z][0-9]+)\\.([0-9]+)", "\\2", nd,perl=TRUE)
     microscope.design$WELLS[[K]]       = gsub(microscope.design$WELLS[[K]],pattern="([A-Z])([0-9]$)", replacement="\\10\\2")
     microscope.design$PICNUM[[K]]      = sub("Stage([0-9]+), ([A-Z][0-9]+)\\.([0-9]+)", "\\3", nd,perl=TRUE)
+
+    ## Then we loop over all well names, see if the weel exists and if it does not, we concatenate an "empty" position to these vectors.
+    all.wells = c()
+    if(microscope.design$FORMAT==96){
+        all.wells = get.96.by.row()          
+    } else {
+        all.wells = get.384.by.row()          
+    }
     
+    for(each.well in all.wells){
+
+        if( sum(each.well %in% microscope.design$WELLS[[K]])>0){
+            # do nothing
+        } else {
+            microscope.design$WELLS[[K]] = c(microscope.design$WELLS[[K]], each.well)
+            microscope.design$S.positions[[K]] = c(microscope.design$S.positions[[K]], 0)
+            microscope.design$PICNUM[[K]] = c(microscope.design$PICNUM[[K]], 0)            
+        }
+    }
+      
     K=K+1
     
   }
@@ -290,6 +317,12 @@ microscope.load.data = function(design){
       WELL.tmp = WELLS[N]
       
   }
+
+      #for(each.well in 1:design$FORMAT){
+
+       #   if(data[[K]][[each.well]]
+      #}
+      
     cat("\n")
     names(data[[K]]) = unique(WELLS)
     print(paste("For plate",K," there are ",Nb.wells.witohut.res," pictures without data"))
@@ -1038,7 +1071,7 @@ plot.reps = function(YFPpr="GPD",CHpr="GPD",YFPad="no",CHad="no",plate=2,design,
 #### TODO: colorscale should be added but that will require using a different layout for the results to make space on one side
 ####       alternatively, colorscale could be written in a different file -- that's probably the easiest.
 ####
-diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9", fun2use=mean){
+diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9", fun2use=mean, cols.to.get=c("GFP","Row","Column") ){
     if(length(data)==1){
         par(mfrow=c(1,1), mai=c(1,1,1,1))
     }
@@ -1069,7 +1102,7 @@ diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9", fun2
 
     check.range = c()
     for( K in 1:length(data)){
-        check.range = c(check.range, uscope.process.get.one.stat(design = design.maya, data = data, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"), fun2use=fun2use)$mean)
+        check.range = c(check.range, uscope.process.get.one.stat(design = design, data = data, plateNUM=K, col.of.interest=col.of.interest, info=cols.to.get, fun2use=fun2use)$mean)
     }
 
     print(check.range[1:100])
@@ -1080,7 +1113,7 @@ diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9", fun2
     my.COL = c(rgb(0.6,0.1,0.1), B2O.COL(20), rgb(1,1,1))     
     
     for( K in 1:length(data)){
-        res.tmp = uscope.process.get.one.stat(design=design, data=data, plateNUM=K, col.of.interest=col.of.interest, info=c("GFP","Row","Column"), fun2use=fun2use)
+        res.tmp = uscope.process.get.one.stat(design=design, data=data, plateNUM=K, col.of.interest=col.of.interest, info=cols.to.get, fun2use=fun2use)
         res.tmp$mean[is.na(res.tmp$mean)]=0
         to.plot = matrix(res.tmp$mean, byrow=TRUE, ncol=24, nrow=16)
         if(design$FORMAT == 96){
@@ -1454,6 +1487,13 @@ get.well = function(PROM1, PROT1, PROM2, PROT2, design, plate=1){
   wells = design$PDEF$well[indexes]
   s.positions = design$S.positions[[plate]][which(design$WELLS[[plate]] %in% wells)]
   return(list( DEF=design$PDEF[indexes,], pos=s.positions) )
+}
+
+
+get.sNUM = function(design, plate=1, well){
+    positions = design$WELLS[[plate]] %in% c(well)
+    s.positions = design$S.positions[[plate]][positions]
+    return(as.numeric(s.positions))
 }
 
 
