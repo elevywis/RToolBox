@@ -1,5 +1,10 @@
-source("/data/elevy/70_R_Data/bin/RToolBox/Multiwell.R")
-source("/data/elevy/70_R_Data/bin/RToolBox/general.R")
+if(!exists(x="RUNLOCAL")){
+  source("/data/elevy/70_R_Data/bin/RToolBox/Multiwell.R")
+  source("/data/elevy/70_R_Data/bin/RToolBox/general.R")
+}else{
+  source("Multiwell.R")
+  source("general.R")
+}
 
 ###
 ## Returns the design of an experiment 
@@ -969,7 +974,7 @@ uscope.process.get.one.stat = function(design, data, plateNUM, col.of.interest, 
   res = sapply(data[[plateNUM]], function(x){ return( fun2use(x[,my.col]) ) } )
   constructs = design$PDEF.split[[plateNUM]][, info]
   
-  my.RES = data.frame( mean = res, id = constructs, stringsAsFactors = FALSE, row.names = NULL)
+  my.RES = data.frame( stat = res, id = constructs, stringsAsFactors = FALSE, row.names = NULL)
   #print(dim(my.RES))
   return(my.RES)
 }
@@ -1064,69 +1069,163 @@ plot.reps = function(YFPpr="GPD",CHpr="GPD",YFPad="no",CHad="no",plate=2,design,
 }
 
 
-
-
 ####
 #### Plots any property on the plates to help detect plate-specific effects.
 #### TODO: colorscale should be added but that will require using a different layout for the results to make space on one side
 ####       alternatively, colorscale could be written in a different file -- that's probably the easiest.
 ####
-diagnostic.intensity = function(data, design, col.of.interest="GFP_int_b9", fun2use=mean, cols.to.get=c("GFP","Row","Column") ){
-    if(length(data)==1){
-        par(mfrow=c(1,1), mai=c(1,1,1,1))
-    }
-    if(length(data)==2){
-        par(mfrow=c(1,2), mai=c(1,1,1,1))
-    }
-    if(length(data) > 2 & length(data) <= 4){
-        par(mfrow=c(2,2), mai=c(1,1,1,1))
-    }
-    if(length(data) > 4 & length(data) <= 6){
-        par(mfrow=c(2,3), mai=c(1,1,1,1))
-    }
-    if(length(data) > 6 & length(data) <= 9){
-        par(mfrow=c(3,3), mai=c(1,1,1,1))
-    }
-    if(length(data) > 9 & length(data) <= 12){
-        par(mfrow=c(3,4), mai=c(0.2,0.5,0.5,0.15))
-    }
-    if(length(data) > 12 & length(data) <= 16){
-        par(mfrow=c(4,4), mai=c(0.2,0.5,0.5,0.15))
-    }
-    if(length(data) > 16 & length(data) <= 20){
-        par(mfrow=c(4,5), mai=c(0.2,0.5,0.5,0.15))
-    }
-    if(length(data) > 20 & length(data) <= 25){
-        par(mfrow=c(5,5), mai=c(0.2,0.5,0.5,0.15))
-    }
-
-    check.range = c()
-    for( K in 1:length(data)){
-        check.range = c(check.range, uscope.process.get.one.stat(design = design, data = data, plateNUM=K, col.of.interest=col.of.interest, info=cols.to.get, fun2use=fun2use)$mean)
-    }
-
-    print(check.range[1:100])
-    check.range = check.range[which(is.finite(check.range))]
-    print(check.range[1:100])
-    my.range = quantile(check.range, prob=seq(0,1,len=21), na.rm=TRUE)
-    print(my.range)
-    my.COL = c(rgb(0.6,0.1,0.1), B2O.COL(20), rgb(1,1,1))     
+diagnostic.plate = function(data, design, col.of.interest="GFP_int_b9", fun2use=mean, cols.to.get=c("GFP","Row","Column"), col.lab=c(), highlight.lab=c(), subtitle=""  ){
+  
+  # Make sure the plate definition file is ordered by wells
+  design$PDEF = design$PDEF[order(design$PDEF$well),]
+  
+  L=length(data)
+  
+  # Dataframe with predefined layout options if number of plates comprised between 1 to 25
+  LAY = data.frame( 
+              nf = 1:25, 
+              nc   = rep(1:5,times=c(2,4,6,8,5)),
+              nr   = rep(1:5,times=c(1,3,5,7,9)),
+              bo   = c(rep(1,9),rep(0.2,16)),
+              le   = c(rep(1,9),rep(0.5,16)),
+              to   = c(rep(1,9),rep(0.5,16)),
+              ri   = c(rep(1,9),rep(0.15,16))
+            )
+  
+  nfig=rep(0,LAY$nc[L]*LAY$nr[L])
+  nfig[1:L]=1:L
     
-    for( K in 1:length(data)){
-        res.tmp = uscope.process.get.one.stat(design=design, data=data, plateNUM=K, col.of.interest=col.of.interest, info=cols.to.get, fun2use=fun2use)
-        res.tmp$mean[is.na(res.tmp$mean)]=0
-        to.plot = matrix(res.tmp$mean, byrow=TRUE, ncol=24, nrow=16)
-        if(design$FORMAT == 96){
-            image(rotate.matrix(to.plot), axes=FALSE, main=paste("Plate  ",K), zlim=c(0,10))
-            axis(2, at=seq(0,1,length=8), lab=LETTERS[8:1])
-            axis(3, at=seq(0,1,length=12), lab=1:12)
-        }
-        if(design$FORMAT == 384){
-            image(rotate.matrix(to.plot), axes=FALSE, main=paste("Plate  ",K), breaks=c(-2^16, my.range, +2^16) , col=my.COL )
-            axis(2, at=seq(0,1,length=16), lab=LETTERS[16:1])
-            axis(3, at=seq(0,1,length=24), lab=1:24)
-        }
+  layout(matrix(nfig, byrow=TRUE, ncol=LAY$nc[L], nrow=LAY$nr[L]))
+  
+  # if(length(data)==1){
+  #   par(mfrow=c(1,1), mai=c(1,1,1,1))
+  # }
+  # if(length(data)==2){
+  #   par(mfrow=c(1,2), mai=c(1,1,1,1))
+  # }
+  # if(length(data) > 2 & length(data) <= 4){
+  #   par(mfrow=c(2,2), mai=c(1,1,1,1))
+  # }
+  # if(length(data) > 4 & length(data) <= 6){
+  #   par(mfrow=c(2,3), mai=c(1,1,1,1))
+  # }
+  # if(length(data) > 6 & length(data) <= 9){
+  #   par(mfrow=c(3,3), mai=c(1,1,1,1))
+  # }
+  # if(length(data) > 9 & length(data) <= 12){
+  #   par(mfrow=c(3,4), mai=c(0.2,0.5,0.5,0.15))
+  # }
+  # if(length(data) > 12 & length(data) <= 16){
+  #   par(mfrow=c(4,4), mai=c(0.2,0.5,0.5,0.15))
+  # }
+  # if(length(data) > 16 & length(data) <= 20){
+  #   par(mfrow=c(4,5), mai=c(0.2,0.5,0.5,0.15))
+  # }
+  # if(length(data) > 20 & length(data) <= 25){
+  #   par(mfrow=c(5,5), mai=c(0.2,0.5,0.5,0.15))
+  # }
+  # 
+  
+  
+  # Check if the column for displaying labels is defined in the the plate design
+  if( !is.null(col.lab) ){ col.lab = match.arg(arg=col.lab, choices=colnames(design$PDEF), several.ok = FALSE) }
+  
+  check.range = c()
+  for( K in 1:length(data)){
+    check.range = c(check.range, uscope.process.get.one.stat(design = design, data = data, plateNUM=K, col.of.interest=col.of.interest, info=cols.to.get, fun2use=fun2use)$stat)
+  }
+  
+  print(check.range[1:100])
+  check.range = check.range[which(is.finite(check.range))]
+  print(check.range[1:100])
+  my.range = quantile(check.range, prob=seq(0,1,len=21), na.rm=TRUE)
+  print(my.range)
+  my.COL = c(rgb(0.6,0.1,0.1), B2O.COL(20), rgb(1,1,1))     
+  
+  require(fields)
+  
+  for( K in 1:length(data)){
+    res.tmp = uscope.process.get.one.stat(design=design, data=data, plateNUM=K, col.of.interest=col.of.interest, info=cols.to.get, fun2use=fun2use)
+    res.tmp$stat[is.na(res.tmp$stat)]=0
+    to.plot = matrix(res.tmp$stat, byrow=TRUE, ncol=24, nrow=16)
+    
+    # Find X/Y coordinates of the well on the matrix Image
+    Xcoord = (design$PDEF$Column-1)  / (nrow(rotate.matrix(to.plot))-1)
+    Ycoord = (as.numeric(factor(design$PDEF$Row,levels=LETTERS))-1)  / (ncol(rotate.matrix(to.plot))-1)
+    mycolors = rep(4,nrow(design$PDEF)) # Define colors for labels and values
+    
+    # Set the margins before each plot based on the predefined layouts
+    par(mai=unlist(LAY[L,c("bo","le","to","ri")]))
+    
+    if(design$FORMAT == 96){
+      image(rotate.matrix(to.plot), axes=FALSE, main=paste("Plate  ",K), zlim=c(0,10))
+      axis(2, at=seq(0,1,length=8), lab=LETTERS[8:1])
+      axis(3, at=seq(0,1,length=12), lab=1:12)
+      mtext(side=1, line=0, text = col.of.interest,cex=1.5) # Add the name of the column of interest below the X-axis
+      title(sub = subtitle) # Add a subtitle at the bottom of the plot
+      
+      # if the column for displaying labels is defined
+      if( !is.null(col.lab) ){
+        mycolors[design$PDEF[,col.lab] %in% highlight.lab] = 6 # change the color (purple) of the labels that are present in highlight.lab
+        # points(x=min(1-Xcoord),y=min(1-Ycoord),pch=19,cex=0.6,col="blue")   # Bottom Left well
+        # points(x=min(1-Xcoord),y=max(1-Ycoord),pch=19,cex=0.6,col="purple") # Top Left well
+        # points(x=max(1-Xcoord),y=min(1-Ycoord),pch=19,cex=0.6,col="green")  # Bottom Right well
+        # points(x=max(1-Xcoord),y=max(1-Ycoord),pch=19,cex=0.6,col="white")  # Top Right well
+        # points(x=Xcoord,y=1-Ycoord,pch=19,cex=0.6,col="blue") # Centers of each well
+        text(x=Xcoord,y=1-Ycoord,labels=design$PDEF[,col.lab],cex=0.6,col=mycolors,pos=3) # LABEL for each well
+        
+        # display the numerical values below each label with the same color code
+        # 0 and NA's are not plotted
+        res.tmp2 = res.tmp$stat
+        res.tmp2[res.tmp2==0] = NA
+        val.ord = res.tmp2[ res.tmp$id.GFP %in% design$PDEF$GFP ]
+        Xcoord[val.ord==0] = NA
+        Ycoord[val.ord==0] = NA
+        text(x=Xcoord,y=1-Ycoord,labels=round(val.ord,2),cex=0.6,col=mycolors,pos=1) # VALUE
+        
+      }
+      
+      col.leg.plt = c( par("plt")[2]-0.01,par("plt")[2]+0.01, par("plt")[3:4] ) # Define the position of the color scale (on the right of the plot)
+      par(pin = par("pin") + c(1.5,0)) # Enlarge the plotting region to include the color scale on the right
+      image.plot( legend.only=TRUE, zlim= range(my.range), col = my.COL , add=TRUE, smallplot=col.leg.plt,legend.width = 0.01, legend.line=0, legend.cex = 0.7)
+      
     }
+    
+    if(design$FORMAT == 384){
+      image(rotate.matrix(to.plot), axes=FALSE, main=paste("Plate  ",K), breaks=c(-2^16, my.range, +2^16) , col=my.COL )
+      axis(2, at=seq(0,1,length=16), lab=LETTERS[16:1])
+      axis(3, at=seq(0,1,length=24), lab=1:24)
+      mtext(side=1, line=0, text = col.of.interest,cex=1.5) # Add the name of the column of interest below the X-axis
+      title(sub = subtitle) # Add a subtitle at the bottom of the plot
+      
+      # if the column for displaying labels is defined
+      if( !is.null(col.lab) ){ 
+        mycolors[design$PDEF[,col.lab] %in% highlight.lab] = 6 # change the color (purple) of the labels that are present in highlight.lab
+        # points(x=min(1-Xcoord),y=min(1-Ycoord),pch=19,cex=0.6,col="blue")   # Bottom Left well
+        # points(x=min(1-Xcoord),y=max(1-Ycoord),pch=19,cex=0.6,col="purple") # Top Left well
+        # points(x=max(1-Xcoord),y=min(1-Ycoord),pch=19,cex=0.6,col="green")  # Bottom Right well
+        # points(x=max(1-Xcoord),y=max(1-Ycoord),pch=19,cex=0.6,col="white")  # Top Right well
+        # points(x=Xcoord,y=1-Ycoord,pch=19,cex=0.6,col="blue") # Centers of each well
+        text(x=Xcoord,y=1-Ycoord,labels=design$PDEF[,col.lab],cex=0.6,col=mycolors,pos=3) # LABEL for each well
+
+        # display the numerical values below each label with the same color code
+        # 0 and NA's are not plotted
+        res.tmp2 = res.tmp$stat
+        res.tmp2[res.tmp2==0] = NA
+        val.ord = res.tmp2[ res.tmp$id.GFP %in% design$PDEF$GFP ]
+        Xcoord[val.ord==0] = NA
+        Ycoord[val.ord==0] = NA
+        text(x=Xcoord,y=1-Ycoord,labels=round(val.ord,2),cex=0.6,col=mycolors,pos=1) # VALUE
+      }
+      col.leg.plt = c( par("plt")[2]-0.01,par("plt")[2]+0.01, par("plt")[3:4] ) # Define the position of the color scale (on the right of the plot)
+      par(pin = par("pin") + c(1.5,0)) # Enlarge the plotting region to include the color scale on the right
+
+      # Add a colorscale on the plot
+      brk.min = log10_floor(my.range[1])
+      brk.max = log10_ceiling(last(my.range))
+      image.plot(legend.only = TRUE, smallplot = col.leg.plt, add=TRUE, zlim=c(brk.min,brk.max), col = my.COL,  legend.width = 0.01, legend.line=0, legend.cex = 0.7,lab.breaks = c(brk.min,round(my.range,2),brk.max))
+    }
+  }
 }
 
 
@@ -1770,8 +1869,8 @@ uscope.count.cells = function(data){
   
   stat = uscope.process.get.one.stat(design = design.or, data = data.or2.1, col.of.interest = 'GFP_int_b5', plateNUM = "STAB" ) 
   
-  M = aggregate(x = data.frame( mean = stat$mean ), by = list(id = stat$id), mean, na.rm=TRUE )
-  S = aggregate(x = data.frame( sd = stat$mean ), by = list(id = stat$id), sd,  na.rm=TRUE )
+  M = aggregate(x = data.frame( mean = stat$stat ), by = list(id = stat$id), mean, na.rm=TRUE )
+  S = aggregate(x = data.frame( sd = stat$stat ), by = list(id = stat$id), sd,  na.rm=TRUE )
   bp = merge( M, S, by='id', all.x=TRUE, all.y=TRUE, sort=FALSE)
   bp = bp[order(bp$mean),]
   
