@@ -143,6 +143,16 @@ RoundToNearest = function(nb,roundto){
   
 }
 
+log10_floor <- function(x) {
+  10^(floor(log10(x)))
+}
+
+log10_ceiling <- function(x) {
+  10^(ceiling(log10(x)))
+}
+
+
+
 # Normalize number between 0 and 1
 Norm01 = function(x){ scale(x,center=min(x),scale=diff(range(x)))[,1] }
 
