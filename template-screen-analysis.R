@@ -10,6 +10,7 @@ output.path = paste0(screen.path,"/results")
 channels.order = c("GFP","RFP","BFP")
 #============================================#
 
+# Load functions into separate environments (all accessible in the workspace)
 general   = attach(what = NULL,name = 'mylib::general')
 multiwell = attach(what = NULL,name = 'mylib::multiwell')
 toolbox   = attach(what = NULL,name = 'mylib::toolbox')
@@ -25,18 +26,19 @@ sys.source("/data/elevy/70_R_Data/bin/RToolBox/yeastProteome.R",yeastprot)
 #myenv = gsub(pattern="mylib::",x=mypkg,repl='')
 #rm(list = myenv)
 
-
-
+### FIND PLATES AND IMAGES FOLDER IN SCREEN PATH
 library(gtools)
 my.timestamp = format(Sys.time(), "%F_%Hh%M")
 # Check plate directories by looking for name containing "plate_X" (X = number of plate)
-plates.path = mixedsort( grep(x=list.dirs(path=screen.path,full.names = T,recursive = F),pattern = 'plate_',ignore.case = T,value = T) )
-# Get image directories of each plate for path ending with "images" without case-sensitivity)
-plates.img.dirs = mixedsort(grep(list.dirs(plates.path,recursive = F,full.names = T), pattern='Images$', ignore.case = T, value=T))
+plates.path = mixedsort( grep(x=list.dirs(path=screen.path,full.names = T,recursive = F),pattern = 'plate_[0-9]+',ignore.case = T,value = T) )
+# Get image folders for each plate path ending with "/Images" without case-sensitivity)
+plates.img.dirs = mixedsort(grep(list.dirs(plates.path,recursive = F,full.names = T), pattern='/Images$', ignore.case = T, value=T))
 
 if( !file.exists(plate.def.path) ){ stop("Plate definition CSV file not found !") }
 #if( !all( check.plates.path ) ){ stop(sprintf("Image directory for plate(s) [%s] not found !",toString(which(!check.plates.path)))) }
 
+
+### READ SCREEN DESIGN AND LOAD IMAGE DATA
 design.screen = microscope.get.design(
   F=plates.img.dirs,
   D=seq(plates.path),
@@ -52,6 +54,8 @@ design.screen = microscope.get.design(
 data.screen.raw = microscope.load.data(design.screen) 
 uscope.count.cells(data.screen.raw)
 lsos() ## check how much memory the object takes
+
+### FILTER IMAGE DATA
 design.screen   = uscope.process.estimate.background(data.screen.raw,design.screen)
 data.screen.raw = uscope.process.reorder(data.screen.raw, design=design.screen)
 data.screen.raw = uscope.process.remove.first.pic(data.screen.raw)
@@ -66,11 +70,13 @@ data.screen3   = uscope.process.add.ncells(data = data.screen2)
 uscope.count.cells(data.screen3)
 init.result.folders(design.screen)
 
+### CHECKPOINT 1 : SAVE SCREEN DESIGN, RAW AND FILTERED DATA #
+#------------------------------------------------------------#
 ### Let's save the image data here.
 save(list=c("data.screen.raw","design.screen","data.screen3"),file=paste0(design.screen$DIR.res,"/screen_",screen.name,"-imagedata_",my.timestamp,".Rdata"))
 ## load(paste0(design.screen$DIR.res,"screen_",screen.name,"-raw-design-data.Rdata"))
 
-#
+##
 ## First we make a couple of diagnostic plots to make sure things are OK 
 ##
 ## BACKGROUND INTENSITY ~ PLATE 
@@ -86,6 +92,7 @@ pdf(file= paste(design.screen$DIR.res,"plate_diag_ncells_new.pdf",sep=""),width=
 diagnostic.intensity(data=data.screen3, design=design.screen, col.of.interest="ncells$", fun2use=length)
 dev.off()
 
+### GET SELECTED CELLS IN IMAGE DATA
 ## 
 ## Output of cell id for each picture (rquired input for Montage)
 ##
@@ -117,6 +124,7 @@ for( p in 1:length(plates.path) ){
 
 options(stringsAsFactors = FALSE)
 
+### GET YEAST PROTEOME DATA
 ## 
 ## Now gets info on ORF abundance and localization (input required for Webserver)
 ##
@@ -170,6 +178,7 @@ for( each.plate in names(design.screen$PDEF.split)){
   design.screen$PDEF.split[[each.plate]] = merge(empty.plate, design.screen$PDEF.split[[each.plate]], by="well", all.x=TRUE)
 }
 
+### GET SUMMARY STATISTICS FOR FLUORESCENT CHANNELS
 # Mean, Noise, Median for bin 5 of each fluorescent channel
 noise = function(x){ var(x) / mean(x)^2 }
 NC  = uscope.process.get.one.stat.allp(design = design.screen, data = data.screen3, col.of.interest=c("GFP_int_b0$"), info=c(channels.order,"ID","well",'plate'),fun2use = length)
@@ -209,6 +218,7 @@ scinfo.cols = list(
   loc = c("Description","Control.Median","Control.STD","Control.Localization","DTT.Median","DTT.STD","DTT.FoldChange","Significance.DTT","DTT.Localization","H2O2.Median","H2O2.STD","H2O2.FoldChange","Significance.H2O2","H2O2.Localization","Starvation.Median","Starvation.STD","Starvation.FoldChange","Significance.Starvation","Starvation.Localization","Pup2.DAmP","MA3.Median","MA3.STD","MA3.FoldChange","Significance.MA3","MA3.Localization")
 )
 
+### MERGE SUMMARY STATISTICS FOR FLUORESCENT CHANNELS AND PROTEOME DATA
 SC.screen = merge(x=STATS, y=scinfo[,scinfo.cols$sel], by.y="ORF", by.x="id.GFP", all.x=TRUE,sort=FALSE)
 SC.screen$ORF = SC.screen$id.GFP
 
