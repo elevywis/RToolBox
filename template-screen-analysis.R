@@ -118,6 +118,7 @@ for( p in 1:length(plates.path) ){
   print(fname)
   FILE=file(fname, open = "w")  
   CELLS.JSON = toJSON(CELLS)
+  writeLines(text = "CELLID=", con = FILE)
   writeLines(text = gsub(CELLS.JSON,pat='\\],\\"',repl='\\],\n\\"'), con = FILE)
   close(FILE)
 }
@@ -244,5 +245,6 @@ O2G = split(SC.screen.ord,f = SC.screen.ord$ORF)
 O2G$Gene = O2G$NAME;
 O2G.JSON = toJSON(O2G)
 FILE=file(paste0(screen.path,"/",screen.name,"-by-ORF.JSON"), open = "w")
+writeLines(text = "RESULTS=", con = FILE)
 writeLines(text = gsub(O2G.JSON,pat='\\"\\},\\"',repl='\\"\\},\n\\"'), con = FILE)
 close(FILE)
